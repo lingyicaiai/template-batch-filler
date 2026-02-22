@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Template Batch Filler</title>
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;max-width:980px;margin:24px auto;padding:0 16px;color:#111}
+    textarea,input{width:100%;box-sizing:border-box;padding:10px;margin:8px 0}
+    textarea{min-height:140px}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    button{padding:10px 14px;border:1px solid #111;background:#111;color:#fff;border-radius:8px;cursor:pointer}
+    pre{white-space:pre-wrap;background:#f6f6f6;padding:12px;border-radius:8px;max-height:320px;overflow:auto}
+    .muted{color:#666;font-size:14px}
+  </style>
+</head>
+<body>
+  <h1>Template Batch Filler</h1>
+  <p class="muted">把一份模板 + CSV 数据，批量生成文本内容。变量格式：{{name}}</p>
+
+  <label>1) 模板</label>
+  <textarea id="tpl">你好 {{name}}，你的订单 {{order_id}} 已发货，预计 {{eta}} 送达。</textarea>
+
+  <label>2) CSV（第一行为表头）</label>
+  <textarea id="csv">name,order_id,eta
+小王,A1001,明天
+小李,A1002,后天</textarea>
+
+  <div class="row">
+    <button id="run">生成</button>
+    <button id="download">下载结果(.txt)</button>
+  </div>
+
+  <h3>输出预览</h3>
+  <pre id="out"></pre>
+
+<script>
+const out = document.getElementById('out');
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/).filter(Boolean);
+  if(lines.length<2) return [];
+  const headers = lines[0].split(',').map(s=>s.trim());
+  return lines.slice(1).map(line=>{
+    const vals=line.split(',').map(s=>s.trim());
+    const obj={}; headers.forEach((h,i)=>obj[h]=vals[i]??'');
+    return obj;
+  });
+}
+function renderOne(tpl,row){
+  return tpl.replace(/\{\{\s*([\w.-]+)\s*\}\}/g,(_,k)=>row[k]??'');
+}
+function run(){
+  const tpl=document.getElementById('tpl').value;
+  const rows=parseCSV(document.getElementById('csv').value);
+  const text = rows.map((r,i)=>`# ${i+1}\n`+renderOne(tpl,r)).join('\n\n');
+  out.textContent=text||'（无数据）';
+  return text;
+}
+document.getElementById('run').onclick=run;
+document.getElementById('download').onclick=()=>{
+  const text = run();
+  const blob=new Blob([text],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob); a.download='batch-output.txt'; a.click();
+  URL.revokeObjectURL(a.href);
+};
+run();
+</script>
+</body>
+</html>
