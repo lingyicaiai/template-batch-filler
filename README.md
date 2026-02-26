@@ -1,18 +1,18 @@
 # Template Batch Filler
 
-A tiny web tool to generate batch text content from one template + CSV rows.
+一个零依赖的前端小工具：把模板里的 `{{字段名}}` 按 CSV 批量填充，快速生成多份 `.txt` 文案。
 
-## Why
-Demand signal: repeated requests for "根据模板批量生成内容" in community posts.
+## 为什么做
+最近 Product Hunt 的效率工具热度 + 社媒中大量“求模板/求自动化生成文案”需求，适合做一个无需登录、无需 API 的轻量 MVP。
 
-## Features
-- `{{variable}}` placeholders
-- CSV input and instant preview
-- One-click download as `.txt`
-- Fully static, deploys on Vercel in seconds
+## 功能
+- 粘贴模板（支持 `{{name}}` 这类占位符）
+- 粘贴 CSV（首行字段名）
+- 一键批量生成
+- 批量下载 `.txt`
 
-## Run locally
-Open `index.html` directly.
+## 本地运行
+直接打开 `index.html` 即可。
 
-## Deploy
-Static site with `vercel.json`.
+## 部署
+已适配 Vercel 静态站点部署（见 `vercel.json`）。
