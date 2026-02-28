@@ -5,112 +5,58 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Template Batch Filler</title>
   <style>
-    body{font-family:Inter,system-ui,-apple-system,sans-serif;max-width:980px;margin:24px auto;padding:0 16px;color:#111}
-    h1{margin-bottom:8px} .hint{color:#666;font-size:14px}
+    body{font-family:Inter,Arial,sans-serif;max-width:1000px;margin:24px auto;padding:0 16px;color:#111}
     textarea,input{width:100%;box-sizing:border-box;padding:10px;border:1px solid #ddd;border-radius:8px}
-    textarea{min-height:140px}
-    .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
-    .card{border:1px solid #eee;border-radius:12px;padding:14px;margin-top:12px}
-    button{background:#111;color:#fff;border:none;border-radius:8px;padding:10px 14px;cursor:pointer}
-    button.secondary{background:#f3f4f6;color:#111}
-    pre{white-space:pre-wrap;background:#fafafa;border:1px solid #eee;border-radius:8px;padding:12px;max-height:360px;overflow:auto}
-    .row{display:flex;gap:10px;flex-wrap:wrap}
-    .ok{color:#0b7a35}.warn{color:#a15b00}
+    textarea{min-height:120px} .row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+    button{padding:10px 14px;border:0;background:#111;color:#fff;border-radius:8px;cursor:pointer}
+    .card{border:1px solid #eee;border-radius:12px;padding:14px;margin:10px 0}
+    pre{white-space:pre-wrap;background:#f8f8f8;padding:10px;border-radius:8px}
+    small{color:#666}
   </style>
 </head>
 <body>
   <h1>Template Batch Filler</h1>
-  <p class="hint">把模板里的 <code>{{字段名}}</code> 按 CSV 批量填充，快速生成文案/消息/邮件草稿。</p>
-
-  <div class="card">
-    <label>1) 模板文本（示例：你好 {{name}}，你的项目 {{project}} 已完成）</label>
-    <textarea id="tpl">你好 {{name}}，\n\n你在 {{date}} 提交的「{{project}}」已进入下一步。\n负责人：{{owner}}\n</textarea>
-  </div>
-
-  <div class="card">
-    <label>2) 粘贴 CSV（首行为字段名）</label>
-    <textarea id="csv">name,date,project,owner
-张三,2026-02-26,增长自动化仪表盘,弈工
-李四,2026-02-27,SEO选题生成器,弈工</textarea>
-    <p class="hint">支持英文逗号分隔；包含逗号时请用双引号包裹。</p>
-  </div>
-
-  <div class="row" style="margin-top:12px;">
-    <button id="run">批量生成</button>
-    <button id="download" class="secondary">下载全部 .txt</button>
-  </div>
-
-  <div class="grid">
-    <div class="card">
-      <h3>预览结果</h3>
-      <p id="status" class="hint">等待生成</p>
-      <pre id="out"></pre>
+  <p>把一份模板批量套入多组数据。适合生成文案、邮件、PRD片段、社媒草稿。</p>
+  <div class="row">
+    <div>
+      <h3>1) 模板（使用 {{name}} 占位）</h3>
+      <textarea id="tpl">你好 {{name}}，\n这是为 {{product}} 准备的 {{type}} 草稿。\n截止时间：{{deadline}}。</textarea>
     </div>
-    <div class="card">
-      <h3>使用场景</h3>
-      <ul>
-        <li>批量生成 outreach 私信模板</li>
-        <li>批量生成项目更新通知</li>
-        <li>批量生成活动邀请/回访文案</li>
-      </ul>
+    <div>
+      <h3>2) JSON 数组数据</h3>
+      <textarea id="data">[
+  {"name":"小李","product":"AI 周报","type":"首发文案","deadline":"周三"},
+  {"name":"Mia","product":"SaaS Landing Page","type":"邮件跟进","deadline":"Friday"}
+]</textarea>
     </div>
   </div>
-
+  <p><button id="run">生成批量结果</button> <button id="dl">下载 results.txt</button></p>
+  <small>提示：仅本地浏览器运行，不上传数据。</small>
+  <div id="out"></div>
 <script>
-function parseCSV(text){
-  const rows=[]; let cur=''; let row=[]; let q=false;
-  for(let i=0;i<text.length;i++){
-    const c=text[i], n=text[i+1];
-    if(c==='"'){
-      if(q && n==='"'){cur+='"'; i++;}
-      else q=!q;
-    }else if(c===',' && !q){row.push(cur); cur='';}
-    else if((c==='\n' || c==='\r') && !q){
-      if(c==='\r' && n==='\n') i++;
-      row.push(cur); if(row.some(x=>x!=='')) rows.push(row);
-      row=[]; cur='';
-    }else cur+=c;
-  }
-  row.push(cur); if(row.some(x=>x!=='')) rows.push(row);
-  return rows;
-}
-
-function fillTemplate(tpl, obj){
-  return tpl.replace(/{{\s*([\w\-]+)\s*}}/g, (_,k)=> obj[k] ?? `{{${k}}}`);
-}
-
-let generated=[];
-
+const out = document.getElementById('out');
+let joined='';
+function fill(tpl,obj){return tpl.replace(/\{\{\s*(\w+)\s*\}\}/g,(_,k)=>obj[k]??'');}
 document.getElementById('run').onclick=()=>{
-  const tpl=document.getElementById('tpl').value;
-  const csv=document.getElementById('csv').value.trim();
-  const rows=parseCSV(csv);
-  if(rows.length<2){
-    document.getElementById('status').innerHTML='<span class="warn">CSV 至少需要表头+1行数据</span>';
-    return;
-  }
-  const headers=rows[0].map(h=>h.trim());
-  generated=rows.slice(1).map((r,idx)=>{
-    const obj={}; headers.forEach((h,i)=>obj[h]=r[i]??'');
-    const text=fillTemplate(tpl,obj);
-    const name=(obj.name||obj.id||`row-${idx+1}`).replace(/[^\w\-\u4e00-\u9fa5]/g,'_');
-    return {filename:`${name}.txt`, text};
-  });
-  const preview=generated.slice(0,3).map((g,i)=>`--- ${g.filename} ---\n${g.text}`).join('\n\n');
-  document.getElementById('out').textContent=preview + (generated.length>3?`\n\n... 还有 ${generated.length-3} 个文件`:'');
-  document.getElementById('status').innerHTML=`<span class="ok">已生成 ${generated.length} 条</span>`;
-};
-
-document.getElementById('download').onclick=async()=>{
-  if(!generated.length){ alert('请先点击“批量生成”'); return; }
-  for(const g of generated){
-    const blob=new Blob([g.text],{type:'text/plain;charset=utf-8'});
-    const a=document.createElement('a');
-    a.href=URL.createObjectURL(blob); a.download=g.filename;
-    document.body.appendChild(a); a.click(); a.remove();
-    await new Promise(r=>setTimeout(r,120));
-  }
-};
+  out.innerHTML=''; joined='';
+  try{
+    const tpl=document.getElementById('tpl').value;
+    const arr=JSON.parse(document.getElementById('data').value);
+    if(!Array.isArray(arr)) throw new Error('数据必须是 JSON 数组');
+    const blocks=arr.map((it,i)=>`#${i+1}\n${fill(tpl,it)}`);
+    joined=blocks.join('\n\n----\n\n');
+    blocks.forEach((b,i)=>{
+      const d=document.createElement('div'); d.className='card';
+      d.innerHTML=`<strong>结果 ${i+1}</strong><pre>${b.replace(/</g,'&lt;')}</pre>`;
+      out.appendChild(d);
+    });
+  }catch(e){ out.innerHTML=`<div class="card" style="border-color:#f66">错误：${e.message}</div>`; }
+}
+document.getElementById('dl').onclick=()=>{
+  if(!joined){alert('请先生成结果');return}
+  const blob=new Blob([joined],{type:'text/plain;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='results.txt'; a.click();
+}
 </script>
 </body>
 </html>
